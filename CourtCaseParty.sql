@@ -1,0 +1,2 @@
+SELECT CourtCaseID,PartyID,CourtCasePartyID,IsPartyActive
+FROM dbo.CourtCaseParty

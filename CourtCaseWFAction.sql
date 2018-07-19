@@ -1,0 +1,16 @@
+SELECT CourtCaseID ,
+       ActionDate ,
+       ActionID ,
+       UserID ,
+       ResultingStateID ,
+       ActionDateYearID ,
+       ActionDateQuarterID ,
+       ActionDateMonthID ,
+       ActionDateWeekID ,
+       ActionDateDayID ,
+       CourtCaseWFActionID ,
+       ActionDateInDay ,
+       StateDuration ,
+       DueDays ,
+       WarningDueDays
+FROM CourtCaseWFAction

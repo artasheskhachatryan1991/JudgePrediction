@@ -17,6 +17,8 @@ from sklearn.tree import DecisionTreeRegressor
 import matplotlib.pyplot as plt
 import xgboost as xgb
 import pyodbc
+from sklearn.externals import joblib
+TABLE_LIST = ["CourtCase", "CourtCaseParty", "CourtCaseSchedule", "CourtCaseCrimes", "CourtCasePartyLegalRepresentative", "CourtCaseDocument"]
 
 def load_data(conn, table, is_train = True, train_decision_date = None, test_id = None):    
     cursor = conn.cursor()       
@@ -164,6 +166,8 @@ def parse_args_train(*argument_array):
                         help='relative path to database connection properties')
     parser.add_argument('--train_decision_date',                        
                         help='date until where to train the data')
+    parser.add_argument('--load_model', '-l',
+                        help='load model from disk')
     args = parser.parse_args(*argument_array)
     return args
 
@@ -174,53 +178,73 @@ def parse_args_test(*argument_array):
     args = parser.parse_args(*argument_array)
     return args
 
-
-def main(args):
-    TABLE_LIST = ["CourtCase", "CourtCaseParty", "CourtCaseSchedule"
-    , "CourtCaseCrimes", "CourtCasePartyLegalRepresentative", "CourtCaseDocument"]
-    PROPERTIES_PATH = args.properties_path
-    TRAIN_DECISION_DATE = args.train_decision_date
-
-    boost_params = {'n_estimators': 200,
+def init(PROPERTIES_PATH, TRAIN_DECISION_DATE):
+	
+	
+	boost_params = {'n_estimators': 200,
  'min_samples_split': 40,
  'min_samples_leaf': 4,
  'max_features': 'sqrt',
  'max_depth': 20,
  'learning_rate': 0.05}
-    boost = GradientBoostingRegressor(**boost_params)
+ 
+	boost = GradientBoostingRegressor(**boost_params)
 
-    train_data = load_all_data(get_connection(PROPERTIES_PATH), TABLE_LIST, is_train=True, train_decision_date=TRAIN_DECISION_DATE)
-    train_data = data_preprocessing(train_data)
-    train_X, train_Y = train_data
-    boost.fit(train_X, train_Y)
+	train_data = load_all_data(get_connection(PROPERTIES_PATH), TABLE_LIST, is_train=True, train_decision_date=TRAIN_DECISION_DATE)
+	train_data = data_preprocessing(train_data)
+	train_X, train_Y = train_data
+	boost.fit(train_X, train_Y)
+	np.save('col.npy', train_X.columns)
 
-    print("training has been completed succesfully !!!!")
-    print("--------------------------------------------")
-    
-    while True:
-        test_id = input("enter CaseID to predict the duration ")
-        TEST_ID = int(test_id)
-		
-        judge_id = input("enter JudgeID to predict the duration ")
-        judge_id = int(judge_id)
-        
-        test_data = load_all_data(get_connection(PROPERTIES_PATH), TABLE_LIST, is_train=False, train_decision_date=None, test_id=TEST_ID)
-        test_data = data_preprocessing(test_data)
-        test_X, test_Y = test_data
-		
-        test_X["AssignedJudgeUserID"] = judge_id
+	print("training has been completed succesfully !!!!")
+	print("--------------------------------------------")
+	
+	return boost;
+	
+def predict(boost, caseId, judgeId, properties_path):
+	train_col = np.load('col.npy')
 
-        missing_cols = set(train_X.columns ) - set(test_X.columns )
-        # Add a missing column in test set with default value equal to 0
-        for c in missing_cols:
-            test_X[c] = 0
-        # Ensure the order of column in the test set is in the same order than in train set
-        test_X = test_X[train_X.columns]
-        y_pred = boost.predict(test_X)[0]
 
-        print("predicted duration is %f days" % y_pred)
-        print("actual duration is %f days" % test_Y)
+	#test_id = input("enter CaseID to predict the duration ")
+	TEST_ID = caseId #int(test_id)
+	
+	#judge_id = input("enter JudgeID to predict the duration ")
+	judge_id = judgeId # int(judge_id)
+	
+	test_data = load_all_data(get_connection(properties_path), TABLE_LIST, is_train=False, train_decision_date=None, test_id=TEST_ID)
+	test_data = data_preprocessing(test_data)
+	test_X, test_Y = test_data
+	
+	test_X["AssignedJudgeUserID"] = judge_id
 
+	missing_cols = set(train_col) - set(test_X.columns )
+	# Add a missing column in test set with default value equal to 0
+	for c in missing_cols:
+		test_X[c] = 0
+	# Ensure the order of column in the test set is in the same order than in train set
+	test_X = test_X[train_col]
+	y_pred = boost.predict(test_X)[0]
+
+	print("predicted duration is %f days" % y_pred)
+	print("actual duration is %f days" % test_Y)
+	return y_pred
+	
+
+def main(args):
+	properties_path = args.properties_path
+	
+	if args.load_model:
+		boost = joblib.load('model.pkl')
+	else:
+		TRAIN_DECISION_DATE = args.train_decision_date
+
+		boost = init(properties_path, TRAIN_DECISION_DATE)
+		joblib.dump(boost, 'model.pkl')
+	
+	while True:
+		test_id = int(input("enter CaseID to predict the duration "))
+		judge_id = int(input("enter JudgeID to predict the duration "))
+		predict(boost, test_id, judge_id, properties_path)
 if __name__ == '__main__':
-    args = parse_args_train()
-    main(args)
+	args = parse_args_train()
+	main(args)

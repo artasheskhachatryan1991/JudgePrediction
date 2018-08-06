@@ -1,6 +1,6 @@
 {
-	"server" : "sis2w123",
+	"server" : "sis2s082",
 	"login" : "idmdaduser",
 	"pass" : "idmdaduser",
-	"db" : "DEV-RWA_IECMS-DATA_Live_20180703"
+	"db" : "DEV-RWA_IECMS-DE_Live_20180801"
 }

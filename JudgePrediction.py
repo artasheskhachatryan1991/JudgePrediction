@@ -118,7 +118,8 @@ def data_preprocessing(data):
     CourtCase.is_nppa_present.fillna(0, inplace=True)        
 
     CourtCase["HasRecieptDocument"] = CourtCase.ReceiptDocumentID.fillna(0).apply(lambda x: 1 if x > 0 else 0)
-    CourtCase["HasProsecutionCase"] = CourtCase.ProsecutionCaseInstanceID.fillna(0).apply(lambda x: 1 if x > 0 else 0)    
+    CourtCase["HasProsecutionCase"] = CourtCase.ProsecutionCaseInstanceID.fillna(0).apply(lambda x: 1 if x > 0 else 0)
+    # CourtCase["IsAppealedcase"] = CourtCase.AppealedCourtCaseID.fillna(0).apply(lambda x: 1 if x > 0 else 0)
     CourtCase["ColorID"] = CourtCase.ColorID.fillna(-1)
     CourtCase["InstanceLevelID"] = CourtCase.InstanceLevelID.fillna(-1)
     CourtCase["ExtraOrdinaryProcedureID"] = CourtCase.ExtraOrdinaryProcedureID.fillna(-1)
@@ -134,6 +135,8 @@ def data_preprocessing(data):
     CourtCase["AppealedCourtCaseInstanceID"] = CourtCase.AppealedCourtCaseInstanceID.fillna(-1)
     CourtCase["HasAppealCase"] = CourtCase.AppealedCourtCaseInstanceID.apply(lambda x: 0 if x == -1 else 1)
     
+    
+    #ProsecutionCaseInstanceID
     CourtCase["ProsecutionCaseInstanceID"] = CourtCase.ProsecutionCaseInstanceID.fillna(-1)
     CourtCase["HasProsecutionCase"] = CourtCase.ProsecutionCaseInstanceID.apply(lambda x: 0 if x == -1 else 1)
         
@@ -141,8 +144,10 @@ def data_preprocessing(data):
     CourtCase["HasReceiptDocument"] = CourtCase.ReceiptDocumentID.apply(lambda x: 0 if x == -1 else 1)
     
     CourtCase["PreviousCourtCaseInstanceID"] = CourtCase.PreviousCourtCaseInstanceID.fillna(-1)
-    CourtCase["HasPreviousCase"] = CourtCase.PreviousCourtCaseInstanceID.apply(lambda x: 0 if x == -1 else 1)    
+    CourtCase["HasPreviousCase"] = CourtCase.PreviousCourtCaseInstanceID.apply(lambda x: 0 if x == -1 else 1)
+    #CourtCase["HasDetails"] = CourtCase.HasDetails.fillna(0)
     CourtCase["IsExempted"] = CourtCase.IsExempted.fillna(0)
+#     CourtCase["Distance"] = CourtCase["DateCreated"] - CourtCase["min_hearingdate"]
     CourtCase["AttachedDate"] = CourtCase.AttachedDate.fillna(0)
     
     CourtCase["CountryID"] = CourtCase.CountryID.fillna(-1)
@@ -151,10 +156,11 @@ def data_preprocessing(data):
     CourtCase["ParentGroupID"] = CourtCase.DistrictID.fillna(-1)
     CourtCase["avg_size"] = CourtCase.avg_size.fillna(0)
     CourtCase["total_size"] = CourtCase.total_size.fillna(0)
-    CourtCase.drop(columns=["ExternalCases", "ReceiptNumber", "StatutoryInstruments", "ChainID"], inplace=True)    
-  
-    CourtCase['FillingFee'] = pd.to_numeric(CourtCase['FillingFee'])
-    print(CourtCase.shape)
+    CourtCase.drop(columns=["ExternalCases", "ReceiptNumber", "StatutoryInstruments", "ChainID", "DecisionStartDate",
+                           "CourtCaseID", "WFActionID", "PublicOwnerUserId", "CourtCaseInstanceID"], inplace=True)    
+
+    
+    CourtCase['FillingFee'] = pd.to_numeric(CourtCase['FillingFee'])    
     
     assert len(CourtCase) > 0, 'No data left after preprocessing'
     
@@ -237,34 +243,37 @@ def init(PROPERTIES_PATH, LOAD_FROM_DISK):
 	return boost;
 	
 def predict(boost, caseId, judgeId, properties_path):
-	train_col = np.load('col.npy')
+    train_col = np.load('col.npy')
 
 
-	#test_id = input("enter CaseID to predict the duration ")
-	TEST_ID = caseId #int(test_id)
+    #test_id = input("enter CaseID to predict the duration ")
+    TEST_ID = caseId #int(test_id)
+    
+    #judge_id = input("enter JudgeID to predict the duration ")
+    judge_id = judgeId # int(judge_id)
+    
+    test_data = load_all_data(get_connection(properties_path), TABLE_LIST, is_train=False, test_id=TEST_ID)
+    test_data = data_preprocessing(test_data)
+    test_X, test_Y = test_data    
+    
+    test_X["AssignedJudgeUserID"] = judge_id
+
+    missing_cols = set(train_col) - set(test_X.columns )
+    # Add a missing column in test set with default value equal to 0
+    for c in missing_cols:
+        test_X[c] = 0
+    # Ensure the order of column in the test set is in the same order than in train set
+    test_X = test_X[train_col]
+    y_pred = boost.predict(test_X)[0]
+    
+    if test_Y.loc[0] == None:
+        print("actual duration is unknown")
+    else:
+        print("actual duration is %f days" % test_Y)
+    print("predicted duration is %f days" % y_pred)
+    
+    return y_pred
 	
-	#judge_id = input("enter JudgeID to predict the duration ")
-	judge_id = judgeId # int(judge_id)
-	
-	test_data = load_all_data(get_connection(properties_path), TABLE_LIST, is_train=False, test_id=TEST_ID)
-	test_data = data_preprocessing(test_data)
-	test_X, test_Y = test_data
-	
-	test_X["AssignedJudgeUserID"] = judge_id
-
-	missing_cols = set(train_col) - set(test_X.columns )
-	# Add a missing column in test set with default value equal to 0
-	for c in missing_cols:
-		test_X[c] = 0
-	# Ensure the order of column in the test set is in the same order than in train set
-	test_X = test_X[train_col]
-	y_pred = boost.predict(test_X)[0]
-
-	print("predicted duration is %f days" % y_pred)
-	print("actual duration is %f days" % test_Y)
-	return y_pred
-	
-
 def main(args):
 	properties_path = args.properties_path
 	laod_from_disk = args.load_from_disk

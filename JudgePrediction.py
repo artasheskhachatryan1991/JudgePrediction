@@ -156,8 +156,7 @@ def data_preprocessing(data):
     CourtCase["ParentGroupID"] = CourtCase.DistrictID.fillna(-1)
     CourtCase["avg_size"] = CourtCase.avg_size.fillna(0)
     CourtCase["total_size"] = CourtCase.total_size.fillna(0)
-    CourtCase.drop(columns=["ExternalCases", "ReceiptNumber", "StatutoryInstruments", "ChainID", "DecisionStartDate",
-                           "CourtCaseID", "WFActionID", "PublicOwnerUserId", "CourtCaseInstanceID"], inplace=True)    
+    CourtCase.drop(columns=["CourtCaseID", "PublicOwnerUserId","CaseRejectionID", "CourtCaseInstanceID", "PaymentBankID", "ReceiptNumber", "RejectionDetails"], inplace=True)    
 
     
     CourtCase['FillingFee'] = pd.to_numeric(CourtCase['FillingFee'])    
@@ -177,11 +176,9 @@ def data_preprocessing(data):
 #     test_X = test_data.drop(columns=["DecisionDuration", "DecisionEndDate"])
 #     test_Y = test_data["DecisionDuration"]
 
-    X = CourtCase.drop(columns=["DecisionDuration", "DecisionEndDate"])
+    X = CourtCase.drop(columns=["DecisionDuration"])
     Y = CourtCase["DecisionDuration"]
     return X, Y
-#     print(train_X.shape, test_X.shape)
-#     return train_X, train_Y, test_X, test_Y
 
 def get_connection(path):
     cwd = os.getcwd()
